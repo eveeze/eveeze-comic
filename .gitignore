@@ -1,0 +1,18 @@
+# === WAJIB ===
+# Abaikan file konfigurasi dengan token rahasia
+config.json
+
+# Abaikan file database
+watchlist.db
+*.db-journal
+
+# Abaikan file hasil kompilasi (binary)
+*.exe
+eveeze-comic
+
+# === SANGAT DISARANKAN ===
+# Abaikan folder setting editor Visual Studio Code
+.vscode/
+
+# Abaikan file log jika ada
+*.log
