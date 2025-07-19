@@ -39,13 +39,12 @@ func makeAPIRequest(url string) ([]byte, error) {
 }
 
 func SearchManga(query string) ([]Manga, error) {
-	// =================================================================
-	// ## PERBAIKAN DI SINI ##
-	// Query dari user di-encode agar aman untuk URL.
 	encodedQuery := url.QueryEscape(query)
-	// =================================================================
 
-	apiURL := fmt.Sprintf("https://api.shngm.io/v1/manga/list?page=1&page_size=5&sort=latest&sort_order=desc&q=%s", encodedQuery)
+	// apiURL := fmt.Sprintf("https://api.shngm.io/v1/manga/list?page=1&page_size=5&sort=latest&sort_order=desc&q=%s", encodedQuery)
+	//
+
+	apiURL := fmt.Sprintf("%s/v1/manga/list?page=1&page_size=5&sort=latest&sort_order=desc&q=%s", cfg.APIBaseURL, encodedQuery)
 
 	body, err := makeAPIRequest(apiURL)
 	if err != nil {
@@ -60,7 +59,9 @@ func SearchManga(query string) ([]Manga, error) {
 }
 
 func GetLatestChapter(mangaID string) (*Chapter, error) {
-	apiURL := fmt.Sprintf("https://api.shngm.io/v1/chapter/%s/list?page=1&page_size=1&sort_by=chapter_number&sort_order=desc", mangaID)
+	// apiURL := fmt.Sprintf("https://api.shngm.io/v1/chapter/%s/list?page=1&page_size=1&sort_by=chapter_number&sort_order=desc", mangaID)
+	//
+	apiURL := fmt.Sprintf("%s/v1/chapter/%s/list?page=1&page_size=1&sort_by=chapter_number&sort_order=desc", cfg.APIBaseURL, mangaID)
 
 	body, err := makeAPIRequest(apiURL)
 	if err != nil {
