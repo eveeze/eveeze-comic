@@ -92,3 +92,34 @@ func GetWatchlistForUser(db *sql.DB, userID string) ([]WatchlistItem, error) {
 	}
 	return items, nil
 }
+
+func DeleteFromWatchlist(db *sql.DB, mangaID string, userID string) error {
+	query := `DELETE FROM watchlist WHERE manga_id = ? AND user_id = ?`
+	_, err := db.Exec(query, mangaID, userID)
+	return err
+}
+
+func GetWatchlistForUserPaginated(db *sql.DB, userID string, page int, pageSize int) ([]WatchlistItem, int, error) {
+	var totalItems int
+	countQuery := `SELECT COUNT(*) FROM watchlist WHERE user_id = ?`
+	err := db.QueryRow(countQuery, userID).Scan(&totalItems)
+	if err != nil {
+		return nil, 0, err
+	}
+	offset := (page - 1) * pageSize
+	query := `SELECT manga_id, user_id, manga_title, last_notified_chapter_id FROM watchlist WHERE user_id = ? ORDER BY manga_title ASC LIMIT ? OFFSET ?`
+	rows, err := db.Query(query, userID, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var items []WatchlistItem
+	for rows.Next() {
+		var item WatchlistItem
+		if err := rows.Scan(&item.MangaID, &item.UserID, &item.MangaTitle, &item.LastNotifiedChapterID); err != nil {
+			return nil, 0, err
+		}
+		items = append(items, item)
+	}
+	return items, totalItems, nil
+}
