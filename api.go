@@ -1,4 +1,4 @@
-// api.go (Perbaikan untuk 400 Bad Request)
+// api.go (Dengan dukungan pagination)
 package main
 
 import (
@@ -7,7 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url" // <-- IMPORT BARU DITAMBAHKAN
+	"net/url"
 	"time"
 )
 
@@ -38,13 +38,10 @@ func makeAPIRequest(url string) ([]byte, error) {
 	return body, nil
 }
 
-func SearchManga(query string) ([]Manga, error) {
+// Fungsi SearchManga sekarang menerima 'page'
+func SearchManga(query string, page int) (*APIResponseManga, error) {
 	encodedQuery := url.QueryEscape(query)
-
-	// apiURL := fmt.Sprintf("https://api.shngm.io/v1/manga/list?page=1&page_size=5&sort=latest&sort_order=desc&q=%s", encodedQuery)
-	//
-
-	apiURL := fmt.Sprintf("%s/v1/manga/list?page=1&page_size=5&sort=latest&sort_order=desc&q=%s", cfg.APIBaseURL, encodedQuery)
+	apiURL := fmt.Sprintf("%s/v1/manga/list?page=%d&page_size=3&sort=latest&sort_order=desc&q=%s", cfg.APIBaseURL, page, encodedQuery)
 
 	body, err := makeAPIRequest(apiURL)
 	if err != nil {
@@ -55,12 +52,10 @@ func SearchManga(query string) ([]Manga, error) {
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return nil, err
 	}
-	return apiResp.Data, nil
+	return &apiResp, nil
 }
 
 func GetLatestChapter(mangaID string) (*Chapter, error) {
-	// apiURL := fmt.Sprintf("https://api.shngm.io/v1/chapter/%s/list?page=1&page_size=1&sort_by=chapter_number&sort_order=desc", mangaID)
-	//
 	apiURL := fmt.Sprintf("%s/v1/chapter/%s/list?page=1&page_size=1&sort_by=chapter_number&sort_order=desc", cfg.APIBaseURL, mangaID)
 
 	body, err := makeAPIRequest(apiURL)
@@ -76,4 +71,23 @@ func GetLatestChapter(mangaID string) (*Chapter, error) {
 		return nil, fmt.Errorf("no chapters found for manga %s", mangaID)
 	}
 	return &apiResp.Data[0], nil
+}
+
+func GetMangaDetails(mangaID string) (*Manga, error) {
+	// Menggunakan endpoint detail yang baru dan lebih tepat
+	apiURL := fmt.Sprintf("%s/v1/manga/detail/%s", cfg.APIBaseURL, mangaID)
+
+	body, err := makeAPIRequest(apiURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Menggunakan struct response yang baru
+	var apiResp APIResponseMangaDetail
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, err
+	}
+
+	// Langsung return objek data-nya
+	return &apiResp.Data, nil
 }

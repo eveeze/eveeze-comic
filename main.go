@@ -1,4 +1,4 @@
-// main.go
+// main.go (Dengan pembaruan struct untuk pagination)
 package main
 
 import (
@@ -64,22 +64,83 @@ type Chapter struct {
 	ReleaseDate string  `json:"release_date"`
 }
 
-type APIResponseManga struct {
-	Data []Manga `json:"data"`
+// Struct untuk menampung 'meta' dari API
+type APIMeta struct {
+	TotalPage int `json:"total_page"`
+	Page      int `json:"page"`
 }
 
+// Struct untuk response pencarian manga
+type APIResponseManga struct {
+	Data []Manga `json:"data"`
+	Meta APIMeta `json:"meta"`
+}
+
+type APIResponseMangaDetail struct {
+	Data Manga `json:"data"`
+}
+
+// Struct untuk response chapter
 type APIResponseChapter struct {
 	Data []Chapter `json:"data"`
 }
 
 // -- Fungsi Helper dan Inti --
-
 func slugify(title string) string {
 	lower := strings.ToLower(title)
 	re := regexp.MustCompile(`[^a-z0-9]+`)
 	slug := re.ReplaceAllString(lower, "-")
 	return strings.Trim(slug, "-")
 }
+
+// func checkForUpdates(s *discordgo.Session) {
+// 	uniqueManga, err := getUniqueMangaFromWatchlist(db)
+// 	if err != nil {
+// 		log.Printf("Error getting unique manga for update check: %v", err)
+// 		return
+// 	}
+// 	for _, item := range uniqueManga {
+// 		latestChapter, err := GetLatestChapter(item.MangaID)
+// 		if err != nil {
+// 			log.Printf("Failed to get latest chapter for %s: %v", item.MangaTitle, err)
+// 			continue
+// 		}
+// 		if latestChapter.ID != item.LastNotifiedChapterID {
+// 			log.Printf("New chapter found for %s: %s", item.MangaTitle, latestChapter.ID)
+// 			users, err := getUsersForManga(db, item.MangaID)
+// 			if err != nil || len(users) == 0 {
+// 				continue
+// 			}
+//
+// 			var mentions []string
+// 			for _, userID := range users {
+// 				mentions = append(mentions, fmt.Sprintf("<@%s>", userID))
+// 			}
+// 			messageContent := strings.Join(mentions, " ")
+// 			mangaURL := fmt.Sprintf("https://shinigami.id/series/%s", slugify(item.MangaTitle))
+//
+// 			notificationEmbed := &discordgo.MessageEmbed{
+// 				Title:       item.MangaTitle,
+// 				URL:         mangaURL,
+// 				Description: fmt.Sprintf("## Chapter %.1f Telah Rilis!", latestChapter.Number),
+// 				Color:       0xffa500,
+// 			}
+// 			_, err = s.ChannelMessageSendComplex(cfg.UpdateChannelID, &discordgo.MessageSend{
+// 				Content: messageContent,
+// 				Embed:   notificationEmbed,
+// 			})
+// 			if err != nil {
+// 				log.Printf("Failed to send notification for %s: %v", item.MangaTitle, err)
+// 				continue
+// 			}
+// 			err = updateAllUsersForManga(db, item.MangaID, latestChapter.ID)
+// 			if err != nil {
+// 				log.Printf("Failed to update last notified chapter for manga %s: %v", item.MangaID, err)
+// 			}
+// 		}
+// 		time.Sleep(3 * time.Second)
+// 	}
+// }
 
 func checkForUpdates(s *discordgo.Session) {
 	uniqueManga, err := getUniqueMangaFromWatchlist(db)
@@ -95,6 +156,14 @@ func checkForUpdates(s *discordgo.Session) {
 		}
 		if latestChapter.ID != item.LastNotifiedChapterID {
 			log.Printf("New chapter found for %s: %s", item.MangaTitle, latestChapter.ID)
+
+			// Ambil detail manga untuk mendapatkan URL sampul
+			mangaDetails, err := GetMangaDetails(item.MangaID)
+			if err != nil {
+				log.Printf("Failed to get manga details for %s: %v", item.MangaTitle, err)
+				// Tetap lanjutkan tanpa gambar jika gagal
+			}
+
 			users, err := getUsersForManga(db, item.MangaID)
 			if err != nil || len(users) == 0 {
 				continue
@@ -105,14 +174,49 @@ func checkForUpdates(s *discordgo.Session) {
 				mentions = append(mentions, fmt.Sprintf("<@%s>", userID))
 			}
 			messageContent := strings.Join(mentions, " ")
-			mangaURL := fmt.Sprintf("https://shinigami.id/series/%s", slugify(item.MangaTitle))
+			chapterURL := fmt.Sprintf("%s/chapter/%s", cfg.ReaderBaseURL, latestChapter.ID)
 
-			notificationEmbed := &discordgo.MessageEmbed{
-				Title:       item.MangaTitle,
-				URL:         mangaURL,
-				Description: fmt.Sprintf("## Chapter %.1f Telah Rilis!", latestChapter.Number),
-				Color:       0xffa500,
+			// Parsing waktu rilis
+			releaseTime, err := time.Parse(time.RFC3339, latestChapter.ReleaseDate)
+			var timestamp string
+			if err == nil {
+				timestamp = releaseTime.Format(time.RFC3339)
 			}
+
+			// -- PEMBUATAN EMBED BARU YANG LEBIH INFORMATIF --
+			notificationEmbed := &discordgo.MessageEmbed{
+				Author: &discordgo.MessageEmbedAuthor{
+					Name: "🔔 Chapter Baru Telah Rilis!",
+				},
+				Title: item.MangaTitle,
+				URL:   chapterURL,
+				Color: 0xffa500, // Oranye
+				Fields: []*discordgo.MessageEmbedField{
+					{
+						Name:   "Chapter Terbaru",
+						Value:  fmt.Sprintf("%.1f", latestChapter.Number),
+						Inline: true,
+					},
+					{
+						Name:   "Tanggal Rilis",
+						Value:  releaseTime.Format("02 Jan 2006, 15:04 WIB"),
+						Inline: true,
+					},
+				},
+				Footer: &discordgo.MessageEmbedFooter{
+					Text:    "Eveeze Comic Bot",
+					IconURL: "https://i.imgur.com/R4Ifj2p.png", // Contoh URL ikon
+				},
+				Timestamp: timestamp,
+			}
+
+			// Tambahkan thumbnail jika berhasil didapatkan
+			if mangaDetails != nil {
+				notificationEmbed.Thumbnail = &discordgo.MessageEmbedThumbnail{
+					URL: mangaDetails.CoverURL,
+				}
+			}
+
 			_, err = s.ChannelMessageSendComplex(cfg.UpdateChannelID, &discordgo.MessageSend{
 				Content: messageContent,
 				Embed:   notificationEmbed,
