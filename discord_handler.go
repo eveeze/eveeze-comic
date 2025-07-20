@@ -13,13 +13,11 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// -- Cache Sederhana untuk Hasil Pencarian --
 var (
 	searchResultCache = make(map[string]Manga)
 	cacheMutex        = &sync.Mutex{}
 )
 
-// -- Handler Utama untuk Semua Interaksi --
 func interactionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
@@ -33,7 +31,6 @@ func interactionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 }
 
-// -- Handler untuk Perintah Slash --
 func searchCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -76,7 +73,6 @@ func watchlistCommandHandler(s *discordgo.Session, i *discordgo.InteractionCreat
 func componentHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	customID := i.MessageComponentData().CustomID
 
-	// ... (handler untuk "add_watchlist_" tetap sama) ...
 	if strings.HasPrefix(customID, "add_watchlist_") {
 		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -110,7 +106,6 @@ func componentHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
-	// ... (handler untuk "show_unread_" tetap sama) ...
 	if strings.HasPrefix(customID, "show_unread_") {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
@@ -166,7 +161,6 @@ func componentHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
-	// ... (handler untuk "mark_read_" tetap sama) ...
 	if strings.HasPrefix(customID, "mark_read_") {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseUpdateMessage})
 		parts := strings.Split(customID, "_")
@@ -187,7 +181,6 @@ func componentHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
-	// BARU: Handler untuk tombol "Tandai Chapter Terbaru"
 	if strings.HasPrefix(customID, "mark_latest_") {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseDeferredMessageUpdate})
 		mangaID := strings.TrimPrefix(customID, "mark_latest_")
@@ -216,7 +209,6 @@ func componentHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
-	// ... (handler untuk delete_watchlist_, watchlist_page_, page_ tetap sama) ...
 	if strings.HasPrefix(customID, "delete_watchlist_") {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseDeferredMessageUpdate})
 		mangaID := strings.TrimPrefix(customID, "delete_watchlist_")
@@ -350,7 +342,6 @@ func createWatchlistResponseMessage(userID string, page int) (*discordgo.Webhook
 		}
 		embeds = append(embeds, embed)
 
-		// Baris tombol pertama: Aksi Utama
 		actionRow1 := discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
 				discordgo.Button{
@@ -359,7 +350,6 @@ func createWatchlistResponseMessage(userID string, page int) (*discordgo.Webhook
 					CustomID: fmt.Sprintf("show_unread_%s", item.MangaID),
 					Disabled: chaptersBehind == 0,
 				},
-				// BARU: Tombol untuk "catch up"
 				discordgo.Button{
 					Label:    "✅ Tandai Terbaru",
 					Style:    discordgo.SuccessButton,
@@ -368,7 +358,6 @@ func createWatchlistResponseMessage(userID string, page int) (*discordgo.Webhook
 				},
 			},
 		}
-		// Baris tombol kedua: Aksi Sekunder
 		actionRow2 := discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
 				discordgo.Button{

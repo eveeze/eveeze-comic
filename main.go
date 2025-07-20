@@ -1,3 +1,4 @@
+// main.go
 package main
 
 import (
@@ -12,10 +13,10 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	_ "github.com/lib/pq" // Driver untuk PostgreSQL
+	// Hapus import pq jika tidak ada file lain yang butuh
 )
 
-// -- Variabel dan Struct Global (Tidak ada perubahan di sini) --
+// -- Variabel dan Struct Global --
 var (
 	db  *sql.DB
 	cfg *Config
@@ -83,8 +84,6 @@ type APIResponseChapter struct {
 	Data []Chapter `json:"data"`
 }
 
-
-
 func checkForUpdates(s *discordgo.Session) {
 	mangaToCheck, err := getUniqueMangaForUpdateCheck(db)
 	if err != nil {
@@ -103,7 +102,7 @@ func checkForUpdates(s *discordgo.Session) {
 			mangaDetails, err := GetMangaDetails(mangaID)
 			if err != nil {
 				log.Printf("Failed to get details for mangaID %s: %v", mangaID, err)
-				continue // Lewati jika tidak bisa dapat judul
+				continue
 			}
 
 			log.Printf("New chapter found for %s: %s", mangaDetails.Title, latestChapter.ID)
@@ -113,7 +112,6 @@ func checkForUpdates(s *discordgo.Session) {
 				continue
 			}
 
-			// ... (logika pembuatan embed dan pengiriman notifikasi tetap sama) ...
 			var mentions []string
 			for _, userID := range users {
 				mentions = append(mentions, fmt.Sprintf("<@%s>", userID))
@@ -149,7 +147,6 @@ func checkForUpdates(s *discordgo.Session) {
 				continue
 			}
 			
-			// PERBAIKAN: Hanya update tabel pelacak, bukan progres user
 			err = updateLatestKnownChapter(db, mangaID, latestChapter.ID)
 			if err != nil {
 				log.Printf("Failed to update latest known chapter for manga %s: %v", mangaID, err)
@@ -163,39 +160,34 @@ func checkForUpdates(s *discordgo.Session) {
 func main() {
 	var err error
 
-	// 1. Memuat konfigurasi dari Environment Variables
 	cfg = LoadConfig()
 
-	// 2. Menginisialisasi koneksi ke database PostgreSQL
-	db, err = InitDB(cfg.DatabaseURL)
+	// Panggil InitDB tanpa parameter
+	db, err = InitDB()
 	if err != nil {
 		log.Fatalf("Error initializing database: %v", err)
 	}
 	defer db.Close()
 
-	// 3. Membuat sesi Discord
 	s, err := discordgo.New("Bot " + cfg.BotToken)
 	if err != nil {
 		log.Fatalf("Invalid bot parameters: %v", err)
 	}
 
-	// 4. Menambahkan server keep-alive untuk Render
 	go func() {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "Bot is alive and running!")
 		})
 		port := os.Getenv("PORT")
 		if port == "" {
-			port = "8080" // Port default untuk testing lokal
+			port = "8080"
 		}
 		log.Printf("Starting keep-alive server on port %s", port)
 		if err := http.ListenAndServe(":"+port, nil); err != nil {
-			// Gunakan log.Printf agar tidak menghentikan bot utama jika server ini gagal
 			log.Printf("Keep-alive server failed to start: %v", err)
 		}
 	}()
 
-	// 5. Menambahkan handler dan membuka koneksi
 	s.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
 		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})
@@ -207,7 +199,6 @@ func main() {
 	}
 	defer s.Close()
 
-	// 6. Mendaftarkan slash commands
 	log.Println("Adding commands...")
 	for _, v := range commands {
 		_, err := s.ApplicationCommandCreate(s.State.User.ID, "", v)
@@ -217,22 +208,18 @@ func main() {
 	}
 	log.Println("Commands added.")
 
-	// 7. Menjalankan ticker untuk pengecekan update
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 	go func() {
-		// Jalankan pengecekan pertama kali saat bot start
 		log.Println("Performing initial update check...")
 		checkForUpdates(s)
 
-		// Loop untuk pengecekan berikutnya sesuai ticker
 		for range ticker.C {
 			log.Println("Checking for updates...")
 			checkForUpdates(s)
 		}
 	}()
 
-	// 8. Menunggu sinyal untuk shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	log.Println("Bot is running. Press Ctrl+C to exit.")

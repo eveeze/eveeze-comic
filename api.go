@@ -55,7 +55,6 @@ func GetChapterList(mangaID string, page int, pageSize int) (*APIResponseChapter
 	}
 	return &apiResp, nil
 }
-// Fungsi SearchManga sekarang menerima 'page'
 func SearchManga(query string, page int) (*APIResponseManga, error) {
 	encodedQuery := url.QueryEscape(query)
 	apiURL := fmt.Sprintf("%s/v1/manga/list?page=%d&page_size=3&sort=latest&sort_order=desc&q=%s", cfg.APIBaseURL, page, encodedQuery)
@@ -91,7 +90,6 @@ func GetLatestChapter(mangaID string) (*Chapter, error) {
 }
 
 func GetMangaDetails(mangaID string) (*Manga, error) {
-	// Menggunakan endpoint detail yang baru dan lebih tepat
 	apiURL := fmt.Sprintf("%s/v1/manga/detail/%s", cfg.APIBaseURL, mangaID)
 
 	body, err := makeAPIRequest(apiURL)
@@ -99,12 +97,10 @@ func GetMangaDetails(mangaID string) (*Manga, error) {
 		return nil, err
 	}
 
-	// Menggunakan struct response yang baru
 	var apiResp APIResponseMangaDetail
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return nil, err
 	}
 
-	// Langsung return objek data-nya
 	return &apiResp.Data, nil
 }
