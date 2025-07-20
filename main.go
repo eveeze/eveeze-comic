@@ -45,10 +45,11 @@ var (
 )
 
 type WatchlistItem struct {
-	MangaID               string
-	UserID                string
-	MangaTitle            string
-	LastNotifiedChapterID string
+	MangaID                   string
+	UserID                    string
+	MangaTitle                string
+	UserProgressChapterID     string
+	UserProgressChapterNumber float64
 }
 
 type Manga struct {
@@ -85,30 +86,34 @@ type APIResponseChapter struct {
 
 
 func checkForUpdates(s *discordgo.Session) {
-	uniqueManga, err := getUniqueMangaFromWatchlist(db)
+	mangaToCheck, err := getUniqueMangaForUpdateCheck(db)
 	if err != nil {
 		log.Printf("Error getting unique manga for update check: %v", err)
 		return
 	}
-	for _, item := range uniqueManga {
-		latestChapter, err := GetLatestChapter(item.MangaID)
+
+	for mangaID, knownChapterID := range mangaToCheck {
+		latestChapter, err := GetLatestChapter(mangaID)
 		if err != nil {
-			log.Printf("Failed to get latest chapter for %s: %v", item.MangaTitle, err)
+			log.Printf("Failed to get latest chapter for mangaID %s: %v", mangaID, err)
 			continue
 		}
-		if latestChapter.ID != item.LastNotifiedChapterID {
-			log.Printf("New chapter found for %s: %s", item.MangaTitle, latestChapter.ID)
 
-			mangaDetails, err := GetMangaDetails(item.MangaID)
+		if latestChapter.ID != knownChapterID {
+			mangaDetails, err := GetMangaDetails(mangaID)
 			if err != nil {
-				log.Printf("Failed to get manga details for %s: %v", item.MangaTitle, err)
+				log.Printf("Failed to get details for mangaID %s: %v", mangaID, err)
+				continue // Lewati jika tidak bisa dapat judul
 			}
 
-			users, err := getUsersForManga(db, item.MangaID)
+			log.Printf("New chapter found for %s: %s", mangaDetails.Title, latestChapter.ID)
+
+			users, err := getUsersForManga(db, mangaID)
 			if err != nil || len(users) == 0 {
 				continue
 			}
 
+			// ... (logika pembuatan embed dan pengiriman notifikasi tetap sama) ...
 			var mentions []string
 			for _, userID := range users {
 				mentions = append(mentions, fmt.Sprintf("<@%s>", userID))
@@ -121,37 +126,18 @@ func checkForUpdates(s *discordgo.Session) {
 			if err == nil {
 				timestamp = releaseTime.Format(time.RFC3339)
 			}
-
 			notificationEmbed := &discordgo.MessageEmbed{
-				Author: &discordgo.MessageEmbedAuthor{
-					Name: "🔔 Chapter Baru Telah Rilis!",
-				},
-				Title: item.MangaTitle,
-				URL:   chapterURL,
-				Color: 0xffa500, // Oranye
+				Author: &discordgo.MessageEmbedAuthor{Name: "🔔 Chapter Baru Telah Rilis!"},
+				Title:  mangaDetails.Title,
+				URL:    chapterURL,
+				Color:  0xffa500,
 				Fields: []*discordgo.MessageEmbedField{
-					{
-						Name:   "Chapter Terbaru",
-						Value:  fmt.Sprintf("%.1f", latestChapter.Number),
-						Inline: true,
-					},
-					{
-						Name:   "Tanggal Rilis",
-						Value:  releaseTime.Format("02 Jan 2006, 15:04 WIB"),
-						Inline: true,
-					},
+					{Name: "Chapter Terbaru", Value: fmt.Sprintf("%.1f", latestChapter.Number), Inline: true},
+					{Name: "Tanggal Rilis", Value: releaseTime.Format("02 Jan 2006, 15:04 WIB"), Inline: true},
 				},
-				Footer: &discordgo.MessageEmbedFooter{
-					Text:    "Eveeze Comic Bot",
-					IconURL: "https://i.imgur.com/R4Ifj2p.png",
-				},
+				Footer:    &discordgo.MessageEmbedFooter{Text: "Eveeze Comic Bot", IconURL: "https://i.imgur.com/R4Ifj2p.png"},
 				Timestamp: timestamp,
-			}
-
-			if mangaDetails != nil {
-				notificationEmbed.Thumbnail = &discordgo.MessageEmbedThumbnail{
-					URL: mangaDetails.CoverURL,
-				}
+				Thumbnail: &discordgo.MessageEmbedThumbnail{URL: mangaDetails.CoverURL},
 			}
 
 			_, err = s.ChannelMessageSendComplex(cfg.UpdateChannelID, &discordgo.MessageSend{
@@ -159,12 +145,14 @@ func checkForUpdates(s *discordgo.Session) {
 				Embed:   notificationEmbed,
 			})
 			if err != nil {
-				log.Printf("Failed to send notification for %s: %v", item.MangaTitle, err)
+				log.Printf("Failed to send notification for %s: %v", mangaDetails.Title, err)
 				continue
 			}
-			err = updateAllUsersForManga(db, item.MangaID, latestChapter.ID)
+			
+			// PERBAIKAN: Hanya update tabel pelacak, bukan progres user
+			err = updateLatestKnownChapter(db, mangaID, latestChapter.ID)
 			if err != nil {
-				log.Printf("Failed to update last notified chapter for manga %s: %v", item.MangaID, err)
+				log.Printf("Failed to update latest known chapter for manga %s: %v", mangaID, err)
 			}
 		}
 		time.Sleep(3 * time.Second)

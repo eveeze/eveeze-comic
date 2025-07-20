@@ -38,6 +38,23 @@ func makeAPIRequest(url string) ([]byte, error) {
 	return body, nil
 }
 
+func GetChapterList(mangaID string, page int, pageSize int) (*APIResponseChapter, error) {
+	apiURL := fmt.Sprintf("%s/v1/chapter/%s/list?page=%d&page_size=%d&sort_by=chapter_number&sort_order=desc", cfg.APIBaseURL, mangaID, page, pageSize)
+
+	body, err := makeAPIRequest(apiURL)
+	if err != nil {
+		return nil, err
+	}
+
+	var apiResp APIResponseChapter
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, err
+	}
+	if len(apiResp.Data) == 0 {
+		return nil, fmt.Errorf("no chapters found for manga %s on page %d", mangaID, page)
+	}
+	return &apiResp, nil
+}
 // Fungsi SearchManga sekarang menerima 'page'
 func SearchManga(query string, page int) (*APIResponseManga, error) {
 	encodedQuery := url.QueryEscape(query)
