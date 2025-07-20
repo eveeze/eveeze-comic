@@ -7,7 +7,6 @@ import (
 	"net/http" // Diperlukan untuk server keep-alive
 	"os"
 	"os/signal"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -83,13 +82,7 @@ type APIResponseChapter struct {
 	Data []Chapter `json:"data"`
 }
 
-// -- Fungsi Helper dan Inti (Tidak ada perubahan di sini) --
-func slugify(title string) string {
-	lower := strings.ToLower(title)
-	re := regexp.MustCompile(`[^a-z0-9]+`)
-	slug := re.ReplaceAllString(lower, "-")
-	return strings.Trim(slug, "-")
-}
+
 
 func checkForUpdates(s *discordgo.Session) {
 	uniqueManga, err := getUniqueMangaFromWatchlist(db)
