@@ -2,23 +2,30 @@
 package main
 
 import (
-	"encoding/json"
+	"log"
 	"os"
 )
 
 type Config struct {
-	BotToken        string `json:"bot_token"`
-	UpdateChannelID string `json:"update_channel_id"`
-	APIBaseURL      string `json:"api_base_url"`
-	ReaderBaseURL   string `json:"reader_base_url"`
+	BotToken        string
+	UpdateChannelID string
+	APIBaseURL      string
+	ReaderBaseURL   string
+	DatabaseURL     string
 }
 
-func LoadConfig() (*Config, error) {
-	file, err := os.ReadFile("config.json")
-	if err != nil {
-		return nil, err
+func LoadConfig() *Config {
+	cfg := &Config{
+		BotToken:        os.Getenv("BOT_TOKEN"),
+		UpdateChannelID: os.Getenv("UPDATE_CHANNEL_ID"),
+		APIBaseURL:      os.Getenv("API_BASE_URL"),
+		ReaderBaseURL:   os.Getenv("READER_BASE_URL"),
+		DatabaseURL:     os.Getenv("DATABASE_URL"),
 	}
-	var cfg Config
-	err = json.Unmarshal(file, &cfg)
-	return &cfg, err
+
+	if cfg.BotToken == "" || cfg.UpdateChannelID == "" || cfg.APIBaseURL == "" || cfg.ReaderBaseURL == "" || cfg.DatabaseURL == "" {
+		log.Fatalf("FATAL: One or more required environment variables are not set. Please check BOT_TOKEN, UPDATE_CHANNEL_ID, API_BASE_URL, READER_BASE_URL, DATABASE_URL.")
+	}
+
+	return cfg
 }

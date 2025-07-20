@@ -1,11 +1,15 @@
-# === WAJIB ===
-# Abaikan file konfigurasi dengan token rahasia
+# === WAJIB (Secrets & Files Lokal) ===
+# Abaikan file konfigurasi lama
 config.json
 
-# Abaikan file database
+# Abaikan file environment variable lokal
+.env
+
+# Abaikan file database SQLite lama dan jurnalnya
 watchlist.db
 *.db-journal
 
+# === HASIL KOMPILASI & DEPENDENSI ===
 # Abaikan file hasil kompilasi (binary)
 *.exe
 eveeze-comic
@@ -16,3 +20,6 @@ eveeze-comic
 
 # Abaikan file log jika ada
 *.log
+
+# Abaikan direktori yang dibuat oleh Docker untuk data persisten
+/postgres_data/
