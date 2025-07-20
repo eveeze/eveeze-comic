@@ -1,10 +1,10 @@
-// main.go (Dengan pembaruan struct untuk pagination)
 package main
 
 import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/http" // Diperlukan untuk server keep-alive
 	"os"
 	"os/signal"
 	"regexp"
@@ -13,9 +13,10 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	_ "github.com/lib/pq" // Driver untuk PostgreSQL
 )
 
-// -- Variabel dan Struct Global --
+// -- Variabel dan Struct Global (Tidak ada perubahan di sini) --
 var (
 	db  *sql.DB
 	cfg *Config
@@ -64,13 +65,11 @@ type Chapter struct {
 	ReleaseDate string  `json:"release_date"`
 }
 
-// Struct untuk menampung 'meta' dari API
 type APIMeta struct {
 	TotalPage int `json:"total_page"`
 	Page      int `json:"page"`
 }
 
-// Struct untuk response pencarian manga
 type APIResponseManga struct {
 	Data []Manga `json:"data"`
 	Meta APIMeta `json:"meta"`
@@ -80,67 +79,17 @@ type APIResponseMangaDetail struct {
 	Data Manga `json:"data"`
 }
 
-// Struct untuk response chapter
 type APIResponseChapter struct {
 	Data []Chapter `json:"data"`
 }
 
-// -- Fungsi Helper dan Inti --
+// -- Fungsi Helper dan Inti (Tidak ada perubahan di sini) --
 func slugify(title string) string {
 	lower := strings.ToLower(title)
 	re := regexp.MustCompile(`[^a-z0-9]+`)
 	slug := re.ReplaceAllString(lower, "-")
 	return strings.Trim(slug, "-")
 }
-
-// func checkForUpdates(s *discordgo.Session) {
-// 	uniqueManga, err := getUniqueMangaFromWatchlist(db)
-// 	if err != nil {
-// 		log.Printf("Error getting unique manga for update check: %v", err)
-// 		return
-// 	}
-// 	for _, item := range uniqueManga {
-// 		latestChapter, err := GetLatestChapter(item.MangaID)
-// 		if err != nil {
-// 			log.Printf("Failed to get latest chapter for %s: %v", item.MangaTitle, err)
-// 			continue
-// 		}
-// 		if latestChapter.ID != item.LastNotifiedChapterID {
-// 			log.Printf("New chapter found for %s: %s", item.MangaTitle, latestChapter.ID)
-// 			users, err := getUsersForManga(db, item.MangaID)
-// 			if err != nil || len(users) == 0 {
-// 				continue
-// 			}
-//
-// 			var mentions []string
-// 			for _, userID := range users {
-// 				mentions = append(mentions, fmt.Sprintf("<@%s>", userID))
-// 			}
-// 			messageContent := strings.Join(mentions, " ")
-// 			mangaURL := fmt.Sprintf("https://shinigami.id/series/%s", slugify(item.MangaTitle))
-//
-// 			notificationEmbed := &discordgo.MessageEmbed{
-// 				Title:       item.MangaTitle,
-// 				URL:         mangaURL,
-// 				Description: fmt.Sprintf("## Chapter %.1f Telah Rilis!", latestChapter.Number),
-// 				Color:       0xffa500,
-// 			}
-// 			_, err = s.ChannelMessageSendComplex(cfg.UpdateChannelID, &discordgo.MessageSend{
-// 				Content: messageContent,
-// 				Embed:   notificationEmbed,
-// 			})
-// 			if err != nil {
-// 				log.Printf("Failed to send notification for %s: %v", item.MangaTitle, err)
-// 				continue
-// 			}
-// 			err = updateAllUsersForManga(db, item.MangaID, latestChapter.ID)
-// 			if err != nil {
-// 				log.Printf("Failed to update last notified chapter for manga %s: %v", item.MangaID, err)
-// 			}
-// 		}
-// 		time.Sleep(3 * time.Second)
-// 	}
-// }
 
 func checkForUpdates(s *discordgo.Session) {
 	uniqueManga, err := getUniqueMangaFromWatchlist(db)
@@ -157,11 +106,9 @@ func checkForUpdates(s *discordgo.Session) {
 		if latestChapter.ID != item.LastNotifiedChapterID {
 			log.Printf("New chapter found for %s: %s", item.MangaTitle, latestChapter.ID)
 
-			// Ambil detail manga untuk mendapatkan URL sampul
 			mangaDetails, err := GetMangaDetails(item.MangaID)
 			if err != nil {
 				log.Printf("Failed to get manga details for %s: %v", item.MangaTitle, err)
-				// Tetap lanjutkan tanpa gambar jika gagal
 			}
 
 			users, err := getUsersForManga(db, item.MangaID)
@@ -176,14 +123,12 @@ func checkForUpdates(s *discordgo.Session) {
 			messageContent := strings.Join(mentions, " ")
 			chapterURL := fmt.Sprintf("%s/chapter/%s", cfg.ReaderBaseURL, latestChapter.ID)
 
-			// Parsing waktu rilis
 			releaseTime, err := time.Parse(time.RFC3339, latestChapter.ReleaseDate)
 			var timestamp string
 			if err == nil {
 				timestamp = releaseTime.Format(time.RFC3339)
 			}
 
-			// -- PEMBUATAN EMBED BARU YANG LEBIH INFORMATIF --
 			notificationEmbed := &discordgo.MessageEmbed{
 				Author: &discordgo.MessageEmbedAuthor{
 					Name: "🔔 Chapter Baru Telah Rilis!",
@@ -205,12 +150,11 @@ func checkForUpdates(s *discordgo.Session) {
 				},
 				Footer: &discordgo.MessageEmbedFooter{
 					Text:    "Eveeze Comic Bot",
-					IconURL: "https://i.imgur.com/R4Ifj2p.png", // Contoh URL ikon
+					IconURL: "https://i.imgur.com/R4Ifj2p.png",
 				},
 				Timestamp: timestamp,
 			}
 
-			// Tambahkan thumbnail jika berhasil didapatkan
 			if mangaDetails != nil {
 				notificationEmbed.Thumbnail = &discordgo.MessageEmbedThumbnail{
 					URL: mangaDetails.CoverURL,
@@ -234,24 +178,43 @@ func checkForUpdates(s *discordgo.Session) {
 	}
 }
 
+// -- Fungsi Main (Dengan Perubahan) --
 func main() {
 	var err error
-	cfg, err = LoadConfig()
-	if err != nil {
-		log.Fatalf("Error loading config.json: %v", err)
-	}
 
-	db, err = InitDB()
+	// 1. Memuat konfigurasi dari Environment Variables
+	cfg = LoadConfig()
+
+	// 2. Menginisialisasi koneksi ke database PostgreSQL
+	db, err = InitDB(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Error initializing database: %v", err)
 	}
 	defer db.Close()
 
+	// 3. Membuat sesi Discord
 	s, err := discordgo.New("Bot " + cfg.BotToken)
 	if err != nil {
 		log.Fatalf("Invalid bot parameters: %v", err)
 	}
 
+	// 4. Menambahkan server keep-alive untuk Render
+	go func() {
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, "Bot is alive and running!")
+		})
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8080" // Port default untuk testing lokal
+		}
+		log.Printf("Starting keep-alive server on port %s", port)
+		if err := http.ListenAndServe(":"+port, nil); err != nil {
+			// Gunakan log.Printf agar tidak menghentikan bot utama jika server ini gagal
+			log.Printf("Keep-alive server failed to start: %v", err)
+		}
+	}()
+
+	// 5. Menambahkan handler dan membuka koneksi
 	s.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
 		log.Printf("Logged in as: %v#%v", s.State.User.Username, s.State.User.Discriminator)
 	})
@@ -263,6 +226,7 @@ func main() {
 	}
 	defer s.Close()
 
+	// 6. Mendaftarkan slash commands
 	log.Println("Adding commands...")
 	for _, v := range commands {
 		_, err := s.ApplicationCommandCreate(s.State.User.ID, "", v)
@@ -272,15 +236,22 @@ func main() {
 	}
 	log.Println("Commands added.")
 
+	// 7. Menjalankan ticker untuk pengecekan update
 	ticker := time.NewTicker(30 * time.Minute)
+	defer ticker.Stop()
 	go func() {
-		for {
+		// Jalankan pengecekan pertama kali saat bot start
+		log.Println("Performing initial update check...")
+		checkForUpdates(s)
+
+		// Loop untuk pengecekan berikutnya sesuai ticker
+		for range ticker.C {
 			log.Println("Checking for updates...")
 			checkForUpdates(s)
-			<-ticker.C
 		}
 	}()
 
+	// 8. Menunggu sinyal untuk shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	log.Println("Bot is running. Press Ctrl+C to exit.")
